@@ -1,6 +1,6 @@
 use std::{ptr::null_mut, mem::{size_of, self}, ffi::c_void};
 
-use windows::Win32::{UI::{WindowsAndMessaging::{SetWindowsHookExA, WH_MOUSE, WH_KEYBOARD, WH_MOUSE_LL, GetMessageA, WINDOWS_HOOK_ID}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0, RIDEV_REMOVE}}, Foundation::{WPARAM, LRESULT, LPARAM, HINSTANCE, HWND, GetLastError}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE}};
+use windows::Win32::{UI::{WindowsAndMessaging::{SetWindowsHookExA, WH_MOUSE, WH_KEYBOARD, WH_MOUSE_LL, GetMessageA, WINDOWS_HOOK_ID, WNDCLASS_STYLES, WNDCLASSA}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0, RIDEV_REMOVE}}, Foundation::{WPARAM, LRESULT, LPARAM, HINSTANCE, HWND, GetLastError}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE}};
 
 /// Array of input devices to register
 ///
@@ -117,6 +117,19 @@ fn main() -> Result<(), String> {
 
     unsafe {
         GetMessageA(null_mut(), HWND::default(), 0, 0);
+    }
+
+    let window_class = WNDCLASSA {
+        style: WNDCLASS_STYLES,
+        lpfnWndProc: WNDPROC,
+        cbClsExtra: i32,
+        cbWndExtra: i32,
+        hInstance: HINSTANCE,
+        hIcon: HICON,
+        hCursor: HCURSOR,
+        hbrBackground: HBRUSH,
+        lpszMenuName: PCSTR,
+        lpszClassName: PCSTR,
     }
 
 
