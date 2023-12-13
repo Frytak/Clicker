@@ -1,59 +1,21 @@
+// Declaring modules...
+mod raw_input;
+mod message_handling;
+
 use std::{ptr::null_mut, mem::{size_of}, ffi::c_void};
 
-use windows::{Win32::{UI::{WindowsAndMessaging::{GetMessageA, WNDCLASS_STYLES, WNDCLASSA, LoadCursorA, IDC_ARROW, LoadCursorW, LoadIconA, IDI_APPLICATION, LoadIconW, RegisterClassA}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0}}, Foundation::{WPARAM, LRESULT, LPARAM, HWND, GetLastError, HINSTANCE}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD}, Graphics::Gdi::{HBRUSH, COLOR_WINDOW, SYS_COLOR_INDEX}, System::LibraryLoader::GetModuleHandleA}, core::{HSTRING, PCSTR, PWSTR, PCWSTR}};
+use windows::{Win32::{UI::{WindowsAndMessaging::{GetMessageA, WNDCLASS_STYLES, WNDCLASSA, LoadCursorA, IDC_ARROW, LoadCursorW, LoadIconA, IDI_APPLICATION, LoadIconW, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, DefWindowProcA, WM_INPUT}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0}}, Foundation::{WPARAM, LRESULT, LPARAM, HWND, GetLastError, HINSTANCE}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD}, Graphics::Gdi::{HBRUSH, COLOR_WINDOW, SYS_COLOR_INDEX}, System::LibraryLoader::GetModuleHandleA}, core::{HSTRING, PCSTR, PWSTR, PCWSTR}};
 
-/// Array of input devices to register
-///
-/// This one only registers keyboards
-const RAWINPUTDEVICES: [RAWINPUTDEVICE; 1] = [
-    RAWINPUTDEVICE {
-        usUsagePage: HID_USAGE_PAGE_GENERIC,
-        usUsage: HID_USAGE_GENERIC_KEYBOARD,
-        dwFlags: RIDEV_NOLEGACY, hwndTarget: HWND(0) }
-];
 
-const MOUSE_CLICK: INPUT = INPUT {
-    r#type: INPUT_TYPE(0),
-    Anonymous: INPUT_0 {
-        mi: MOUSEINPUT {
-            dx: 0,
-            dy: 0,
-            mouseData: 0,
-            dwFlags: MOUSE_EVENT_FLAGS(MOUSEEVENTF_LEFTDOWN.0 | MOUSEEVENTF_LEFTUP.0),
-            time: 0,
-            dwExtraInfo: 0
-        }
-    }
-};
-
-unsafe extern "system" fn window_handle_message(handle: HWND, message: u32, additional_w: WPARAM, additional_l: LPARAM) -> LRESULT {
-    LRESULT::default()
-}
-
-const NAME: [u8; 3] = [ b'K', b'F', b'C' ];
-const H_WIN_MOD: u8 = 0;
 
 fn main() -> Result<(), String> {
     let mut device_list: Vec<RAWINPUTDEVICELIST>;
     let mut device_count: u32 = 0;
 
-    unsafe {
-        RegisterRawInputDevices(&RAWINPUTDEVICES, size_of::<RAWINPUTDEVICE>() as u32).map_err(|err| {
-            format!("Couldn't register for raw input. {:?}", err)
-        })?;
+    //unsafe {
+    //    GetMessageA(null_mut(), HWND::default(), 0, 0);
+    //}
 
-        // Get the amount of raw input devices and allocate an apropariate space
-        if GetRawInputDeviceList(None, &mut device_count, size_of::<RAWINPUTDEVICELIST>() as u32) == u32::MAX {
-            return Err(format!("Couldn't get the amount of raw input devices. {:?}", GetLastError().expect_err("No error found while getting the amount of raw input devices.")));
-        }
-
-        device_list = vec![RAWINPUTDEVICELIST::default(); device_count as usize];
-
-        // Assign raw input devices into the array
-        if GetRawInputDeviceList(Some(&mut device_list[0]), &mut device_count, size_of::<RAWINPUTDEVICELIST>() as u32) == u32::MAX {
-            return Err(format!("Couldn't get the list of raw input devices. {:?}", GetLastError().expect_err("No error found while getting the list of raw input devices.")));
-        }
-    }
 
     println!("====================================");
     println!("     Raw input devices status       ");
@@ -117,29 +79,6 @@ fn main() -> Result<(), String> {
                 println!("\tUsage: {}", device_info.Anonymous.hid.usUsage);
             },
             _ => { panic!("Impossible or yet unimplemented type of device."); }
-        }
-    }
-
-    unsafe {
-        GetMessageA(null_mut(), HWND::default(), 0, 0);
-    }
-
-    unsafe {
-        let window_class = WNDCLASSA {
-            style: WNDCLASS_STYLES::default(),
-            lpfnWndProc: Some(window_handle_message),
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: HINSTANCE(GetModuleHandleA(PCSTR::from_raw(&H_WIN_MOD as *const _)).unwrap().0),
-            hIcon: windows::Win32::UI::WindowsAndMessaging::HICON::default(),
-            hCursor: LoadCursorW(HINSTANCE::default(), IDC_ARROW).unwrap(),
-            hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize),
-            lpszMenuName: PCSTR::from_raw(&NAME[0] as *const _),
-            lpszClassName: PCSTR::from_raw(&NAME[0] as *const _),
-        };
-
-        if (RegisterClassA(&window_class as *const _) == 0) {
-            return Err(GetLastError().expect_err("No error found for registering a calss"));
         }
     }
 
