@@ -1,6 +1,6 @@
-use std::{ptr::null_mut, mem::{size_of, self}, ffi::c_void};
+use std::{ptr::null_mut, mem::{size_of}, ffi::c_void};
 
-use windows::Win32::{UI::{WindowsAndMessaging::{SetWindowsHookExA, WH_MOUSE, WH_KEYBOARD, WH_MOUSE_LL, GetMessageA, WINDOWS_HOOK_ID, WNDCLASS_STYLES, WNDCLASSA}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0, RIDEV_REMOVE}}, Foundation::{WPARAM, LRESULT, LPARAM, HINSTANCE, HWND, GetLastError}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE}};
+use windows::{Win32::{UI::{WindowsAndMessaging::{GetMessageA, WNDCLASS_STYLES, WNDCLASSA, LoadCursorA, IDC_ARROW, LoadCursorW, LoadIconA, IDI_APPLICATION, LoadIconW, RegisterClassA}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0}}, Foundation::{WPARAM, LRESULT, LPARAM, HWND, GetLastError, HINSTANCE}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD}, Graphics::Gdi::{HBRUSH, COLOR_WINDOW, SYS_COLOR_INDEX}, System::LibraryLoader::GetModuleHandleA}, core::{HSTRING, PCSTR, PWSTR, PCWSTR}};
 
 /// Array of input devices to register
 ///
@@ -9,9 +9,7 @@ const RAWINPUTDEVICES: [RAWINPUTDEVICE; 1] = [
     RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
         usUsage: HID_USAGE_GENERIC_KEYBOARD,
-        dwFlags: RIDEV_NOLEGACY,
-        hwndTarget: HWND(0)
-    }
+        dwFlags: RIDEV_NOLEGACY, hwndTarget: HWND(0) }
 ];
 
 const MOUSE_CLICK: INPUT = INPUT {
@@ -27,6 +25,13 @@ const MOUSE_CLICK: INPUT = INPUT {
         }
     }
 };
+
+unsafe extern "system" fn window_handle_message(handle: HWND, message: u32, additional_w: WPARAM, additional_l: LPARAM) -> LRESULT {
+    LRESULT::default()
+}
+
+const NAME: [u8; 3] = [ b'K', b'F', b'C' ];
+const H_WIN_MOD: u8 = 0;
 
 fn main() -> Result<(), String> {
     let mut device_list: Vec<RAWINPUTDEVICELIST>;
@@ -119,17 +124,23 @@ fn main() -> Result<(), String> {
         GetMessageA(null_mut(), HWND::default(), 0, 0);
     }
 
-    let window_class = WNDCLASSA {
-        style: WNDCLASS_STYLES,
-        lpfnWndProc: WNDPROC,
-        cbClsExtra: i32,
-        cbWndExtra: i32,
-        hInstance: HINSTANCE,
-        hIcon: HICON,
-        hCursor: HCURSOR,
-        hbrBackground: HBRUSH,
-        lpszMenuName: PCSTR,
-        lpszClassName: PCSTR,
+    unsafe {
+        let window_class = WNDCLASSA {
+            style: WNDCLASS_STYLES::default(),
+            lpfnWndProc: Some(window_handle_message),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: HINSTANCE(GetModuleHandleA(PCSTR::from_raw(&H_WIN_MOD as *const _)).unwrap().0),
+            hIcon: windows::Win32::UI::WindowsAndMessaging::HICON::default(),
+            hCursor: LoadCursorW(HINSTANCE::default(), IDC_ARROW).unwrap(),
+            hbrBackground: HBRUSH((COLOR_WINDOW.0 + 1) as isize),
+            lpszMenuName: PCSTR::from_raw(&NAME[0] as *const _),
+            lpszClassName: PCSTR::from_raw(&NAME[0] as *const _),
+        };
+
+        if (RegisterClassA(&window_class as *const _) == 0) {
+            return Err(GetLastError().expect_err("No error found for registering a calss"));
+        }
     }
 
 
