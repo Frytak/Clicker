@@ -2,25 +2,46 @@
 mod raw_input;
 mod message_handling;
 
-use std::{ptr::null_mut, mem::{size_of}, ffi::c_void};
+use std::mem::size_of;
 
-use windows::{Win32::{UI::{WindowsAndMessaging::{GetMessageA, WNDCLASS_STYLES, WNDCLASSA, LoadCursorA, IDC_ARROW, LoadCursorW, LoadIconA, IDI_APPLICATION, LoadIconW, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, DefWindowProcA, WM_INPUT}, Input::{KeyboardAndMouse::{INPUT, INPUT_0, MOUSEINPUT, INPUT_TYPE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, SendInput}, RAWINPUTDEVICE, RIDEV_NOLEGACY, RegisterRawInputDevices, GetRawInputDeviceList, RAWINPUTDEVICELIST, GetRawInputDeviceInfoA, RIDI_DEVICEINFO, RID_DEVICE_INFO, RID_DEVICE_INFO_TYPE, RID_DEVICE_INFO_0}}, Foundation::{WPARAM, LRESULT, LPARAM, HWND, GetLastError, HINSTANCE}, Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD}, Graphics::Gdi::{HBRUSH, COLOR_WINDOW, SYS_COLOR_INDEX}, System::LibraryLoader::GetModuleHandleA}, core::{HSTRING, PCSTR, PWSTR, PCWSTR}};
+use windows::Win32::{UI::{Input::{
+    KeyboardAndMouse::{INPUT, SendInput, INPUT_TYPE, INPUT_0, MOUSEINPUT, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP},
+    RID_DEVICE_INFO,
+    RID_DEVICE_INFO_TYPE,
+    RID_DEVICE_INFO_0
+}, WindowsAndMessaging::GetMessageA}, Foundation::HWND};
 
+use crate::{message_handling::{register_window_class, get_window_class, create_window}, raw_input::{register_raw_input, RAW_INPUT_KEYBOARD, get_raw_input_device_list, get_raw_input_device_info, get_raw_input_data}};
 
+pub const MOUSE_CLICK: INPUT = INPUT {
+    r#type: INPUT_TYPE(0),
+    Anonymous: INPUT_0 {
+        mi: MOUSEINPUT {
+            dx: 0,
+            dy: 0,
+            mouseData: 0,
+            dwFlags: MOUSE_EVENT_FLAGS(MOUSEEVENTF_LEFTDOWN.0 | MOUSEEVENTF_LEFTUP.0),
+            time: 0,
+            dwExtraInfo: 0
+        }
+    }
+};
 
 fn main() -> Result<(), String> {
-    let mut device_list: Vec<RAWINPUTDEVICELIST>;
-    let mut device_count: u32 = 0;
 
-    //unsafe {
-    //    GetMessageA(null_mut(), HWND::default(), 0, 0);
-    //}
+    // Create a window
+    let window_class = get_window_class()?;
+    let register_atom = register_window_class(&window_class)?;
+    create_window(&window_class)?;
 
+    // Check raw input
+    register_raw_input(&RAW_INPUT_KEYBOARD)?;
+    let device_list = get_raw_input_device_list()?;
 
     println!("====================================");
     println!("     Raw input devices status       ");
     println!("====================================");
-    println!("Device count: {}", device_count);
+    println!("Device count: {}", device_list.len());
     println!("Device list:");
     for (i, device) in device_list.iter().enumerate() {
         println!("\t{}: Handle({}), Type({})", i, device.hDevice.0, device.dwType.0);
@@ -29,27 +50,8 @@ fn main() -> Result<(), String> {
 
 
     for device in device_list {
-        let mut device_info_size: u32 = 0;
-        let mut device_info = RID_DEVICE_INFO {
-            cbSize: size_of::<RID_DEVICE_INFO>() as u32,
-            dwType: RID_DEVICE_INFO_TYPE::default(),
-            Anonymous: RID_DEVICE_INFO_0::default()
-        };
+        let device_info = get_raw_input_device_info(device.hDevice)?;
 
-        unsafe {
-            let device_info_ptr: *mut c_void = (&mut device_info as *mut _) as *mut c_void;
-
-            // Get required size... For no reason as I use RIDI_DEVICEINFO, I already know it but
-            // Windows still requires it! Or else it errors that it doesn't have enough space for the
-            // data even though it does.
-            if GetRawInputDeviceInfoA(device.hDevice, RIDI_DEVICEINFO, None, &mut device_info_size) == u32::MAX {
-                return Err(format!("Couldn't get required size for device with handle {}. {:?}", device.hDevice.0, GetLastError().expect_err("No error found while getting required size for device.")));
-            }
-
-            if GetRawInputDeviceInfoA(device.hDevice, RIDI_DEVICEINFO, Some(device_info_ptr), &mut device_info_size) == u32::MAX {
-                return Err(format!("Couldn't get more information on device with handle {}. {:?}", device.hDevice.0, GetLastError().expect_err("No error found while getting more information on device.")));
-            }
-        }
 
         println!("====================================");
         println!("      Raw input devices info        ");

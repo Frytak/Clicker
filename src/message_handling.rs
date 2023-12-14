@@ -1,6 +1,6 @@
 use windows::{
     Win32::{
-        UI::WindowsAndMessaging::{ WNDCLASSA, WNDCLASS_STYLES, LoadCursorW, IDC_ARROW, DefWindowProcA, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, WM_INPUT },
+        UI::{WindowsAndMessaging::{ WNDCLASSA, WNDCLASS_STYLES, LoadCursorW, IDC_ARROW, DefWindowProcA, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, WM_INPUT }, Input::HRAWINPUT},
         Foundation::{ HWND, HINSTANCE, LRESULT, GetLastError, WPARAM, LPARAM },
         Graphics::Gdi::{ HBRUSH, COLOR_WINDOW },
         System::LibraryLoader::GetModuleHandleA,
@@ -8,13 +8,15 @@ use windows::{
     core::PCSTR
 };
 
+use crate::raw_input::get_raw_input_data;
+
 pub const APP_NAME: &'static str = "FrytaksClicker";
 const APP_NAME_WIN: [u8; 15] = *b"FrytaksClicker\0";
 
 /// A window class specifically for this app
 ///
 /// Couldn't be defined as a `const` as it uses non-constant function calls
-pub unsafe fn get_window_class() -> Result<WNDCLASSA, String> {
+pub fn get_window_class() -> Result<WNDCLASSA, String> {
     Ok(WNDCLASSA {
         style: WNDCLASS_STYLES::default(),
         lpfnWndProc: Some(window_handle_message),
@@ -35,6 +37,10 @@ unsafe extern "system" fn window_handle_message(handle: HWND, message: u32, addi
 
     match message {
         WM_INPUT => {
+            let raw_input_data = get_raw_input_data(&HRAWINPUT(additional_l.0));
+
+            dbg!(raw_input_data);
+
             println!("AND IT'S A RAW INPUT BABEEEEE!");
         }
         _ => { return DefWindowProcA(handle, message, additional_w, additional_l); }
@@ -43,6 +49,7 @@ unsafe extern "system" fn window_handle_message(handle: HWND, message: u32, addi
     LRESULT::default()
 }
 
+/// Return register atom
 pub fn register_window_class(window_class: &WNDCLASSA) -> Result<u16, String> {
     // Register the window class
     let register_atom = unsafe { RegisterClassA(window_class as *const _) };
