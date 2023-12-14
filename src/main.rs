@@ -4,14 +4,21 @@ mod message_handling;
 
 use std::mem::size_of;
 
-use windows::Win32::{UI::{Input::{
-    KeyboardAndMouse::{INPUT, SendInput, INPUT_TYPE, INPUT_0, MOUSEINPUT, MOUSE_EVENT_FLAGS, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP},
-    RID_DEVICE_INFO,
+use windows::Win32::UI::{Input::{
+    KeyboardAndMouse::{
+        INPUT,
+        SendInput,
+        INPUT_TYPE,
+        INPUT_0,
+        MOUSEINPUT,
+        MOUSE_EVENT_FLAGS,
+        MOUSEEVENTF_LEFTDOWN,
+        MOUSEEVENTF_LEFTUP
+    },
     RID_DEVICE_INFO_TYPE,
-    RID_DEVICE_INFO_0
-}, WindowsAndMessaging::GetMessageA}, Foundation::HWND};
+}, WindowsAndMessaging::{GetMessageA, WM_INPUT, MSG, DispatchMessageA, TranslateMessage}};
 
-use crate::{message_handling::{register_window_class, get_window_class, create_window}, raw_input::{register_raw_input, RAW_INPUT_KEYBOARD, get_raw_input_device_list, get_raw_input_device_info, get_raw_input_data}};
+use crate::{message_handling::{register_window_class, get_window_class, create_window}, raw_input::{register_raw_input, RAW_INPUT_KEYBOARD, get_all_input_devices, get_raw_input_device_info, get_registered_input_devices}};
 
 pub const MOUSE_CLICK: INPUT = INPUT {
     r#type: INPUT_TYPE(0),
@@ -28,15 +35,16 @@ pub const MOUSE_CLICK: INPUT = INPUT {
 };
 
 fn main() -> Result<(), String> {
-
     // Create a window
     let window_class = get_window_class()?;
-    let register_atom = register_window_class(&window_class)?;
-    create_window(&window_class)?;
+    register_window_class(&window_class)?;
+    let window_handle = create_window(&window_class)?;
 
     // Check raw input
-    register_raw_input(&RAW_INPUT_KEYBOARD)?;
-    let device_list = get_raw_input_device_list()?;
+    let mut raw_input_keyboard = RAW_INPUT_KEYBOARD.clone();
+    raw_input_keyboard[0].hwndTarget = window_handle;
+    register_raw_input(&raw_input_keyboard)?;
+    let device_list = get_registered_input_devices()?;
 
     println!("====================================");
     println!("     Raw input devices status       ");
@@ -44,19 +52,18 @@ fn main() -> Result<(), String> {
     println!("Device count: {}", device_list.len());
     println!("Device list:");
     for (i, device) in device_list.iter().enumerate() {
-        println!("\t{}: Handle({}), Type({})", i, device.hDevice.0, device.dwType.0);
+        println!("\t{}: Handle({}), UsagePage({}), Usage({}), Flags({})", i, device.hwndTarget.0, device.usUsagePage, device.usUsage, device.dwFlags.0);
     }
 
-
-
     for device in device_list {
-        let device_info = get_raw_input_device_info(device.hDevice)?;
-
+        continue;
+        if device.hwndTarget.0 == 0 { continue; }
+        let device_info = get_raw_input_device_info(device.hwndTarget.into())?;
 
         println!("====================================");
         println!("      Raw input devices info        ");
         println!("====================================");
-        println!("Device handle: {}", device.hDevice.0);
+        println!("Device handle: {}", device.hwndTarget.0);
 
         match device_info.dwType {
             RID_DEVICE_INFO_TYPE(0) => unsafe {
@@ -84,6 +91,16 @@ fn main() -> Result<(), String> {
         }
     }
 
+
+    unsafe {
+        let mut message = MSG::default();
+        let message_ptr = &mut message as *mut _;
+
+        while GetMessageA(message_ptr, None, 0, 0).0 != 0 {
+            TranslateMessage(message_ptr);
+            DispatchMessageA(message_ptr);
+        }
+    }
 
 
     println!("Simulating mouse click...");

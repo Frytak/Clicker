@@ -1,6 +1,6 @@
 use windows::{
     Win32::{
-        UI::{WindowsAndMessaging::{ WNDCLASSA, WNDCLASS_STYLES, LoadCursorW, IDC_ARROW, DefWindowProcA, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, WM_INPUT }, Input::HRAWINPUT},
+        UI::{WindowsAndMessaging::{ WNDCLASSA, WNDCLASS_STYLES, LoadCursorW, IDC_ARROW, DefWindowProcA, RegisterClassA, CreateWindowExA, WINDOW_EX_STYLE, WINDOW_STYLE, HWND_MESSAGE, HMENU, WM_INPUT, WM_INPUT_DEVICE_CHANGE }, Input::HRAWINPUT},
         Foundation::{ HWND, HINSTANCE, LRESULT, GetLastError, WPARAM, LPARAM },
         Graphics::Gdi::{ HBRUSH, COLOR_WINDOW },
         System::LibraryLoader::GetModuleHandleA,
@@ -8,7 +8,7 @@ use windows::{
     core::PCSTR
 };
 
-use crate::raw_input::get_raw_input_data;
+use crate::raw_input::{get_raw_input_data, RawInputData};
 
 pub const APP_NAME: &'static str = "FrytaksClicker";
 const APP_NAME_WIN: [u8; 15] = *b"FrytaksClicker\0";
@@ -33,19 +33,33 @@ pub fn get_window_class() -> Result<WNDCLASSA, String> {
 
 /// Function handling incoming messages in a queue.
 unsafe extern "system" fn window_handle_message(handle: HWND, message: u32, additional_w: WPARAM, additional_l: LPARAM) -> LRESULT {
-    println!("We've got some messages boys!");
+    print!("Message received: ");
 
     match message {
         WM_INPUT => {
-            let raw_input_data = get_raw_input_data(&HRAWINPUT(additional_l.0));
+            let raw_input_data = match get_raw_input_data(&HRAWINPUT(additional_l.0)) {
+                Ok(ok) => { ok }
+                Err(err) => {
+                    eprintln!("Couldn't get the input data from handle `{}`. Error: `{}`", additional_l.0, err);
+                    return DefWindowProcA(handle, message, additional_w, additional_l);
+                }
+            };
 
             dbg!(raw_input_data);
 
-            println!("AND IT'S A RAW INPUT BABEEEEE!");
+            //print!("AND IT'S A RAW INPUT BABEEEEE!");
         }
-        _ => { return DefWindowProcA(handle, message, additional_w, additional_l); }
+        WM_INPUT_DEVICE_CHANGE => {
+            print!("New raw input device registered!");
+        }
+        _ => {
+            print!("{}", message);
+            println!("");
+            return DefWindowProcA(handle, message, additional_w, additional_l);
+        }
     }
 
+    println!("");
     LRESULT::default()
 }
 
@@ -68,7 +82,7 @@ pub fn register_window_class(window_class: &WNDCLASSA) -> Result<u16, String> {
 /// Create an invisible window for getting messages
 ///
 /// I need `WM_INPUT` messages to be specific
-pub fn create_window(window_class: &WNDCLASSA) -> Result<(), String> {
+pub fn create_window(window_class: &WNDCLASSA) -> Result<HWND, String> {
     let window_handle: HWND = unsafe { CreateWindowExA(
         WINDOW_EX_STYLE::default(),
         window_class.lpszClassName,
@@ -92,5 +106,5 @@ pub fn create_window(window_class: &WNDCLASSA) -> Result<(), String> {
         );
     }
 
-    Ok(())
+    Ok(window_handle)
 }

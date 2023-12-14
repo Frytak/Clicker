@@ -14,7 +14,7 @@ use windows::Win32::{
         RIDEV_NOLEGACY,
         RIDI_DEVICEINFO,
         RID_HEADER,
-        RID_INPUT, RAWKEYBOARD, RAWMOUSE, RAWHID, RID_DEVICE_INFO_TYPE
+        RID_INPUT, RAWKEYBOARD, RAWMOUSE, RAWHID, RID_DEVICE_INFO_TYPE, GetRegisteredRawInputDevices, RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK
     },
     Devices::HumanInterfaceDevice::{HID_USAGE_PAGE_GENERIC, HID_USAGE_GENERIC_KEYBOARD},
     Foundation::{HWND, GetLastError, HANDLE}
@@ -27,7 +27,9 @@ pub const RAW_INPUT_KEYBOARD: [RAWINPUTDEVICE; 1] = [
     RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
         usUsage: HID_USAGE_GENERIC_KEYBOARD,
-        dwFlags: RIDEV_NOLEGACY, hwndTarget: HWND(0) }
+        dwFlags: RAWINPUTDEVICE_FLAGS(RIDEV_NOLEGACY.0 | RIDEV_INPUTSINK.0),
+        hwndTarget: HWND(0)
+    }
 ];
 
 pub fn register_raw_input(raw_input_devices: &[RAWINPUTDEVICE]) -> Result<(), String> {
@@ -40,7 +42,7 @@ pub fn register_raw_input(raw_input_devices: &[RAWINPUTDEVICE]) -> Result<(), St
     Ok(())
 }
 
-pub fn get_raw_input_device_list() -> Result<Vec<RAWINPUTDEVICELIST>, String> {
+pub fn get_all_input_devices() -> Result<Vec<RAWINPUTDEVICELIST>, String> {
     let mut device_list: Vec<RAWINPUTDEVICELIST>;
     let mut device_count = 0;
     unsafe {
@@ -48,8 +50,8 @@ pub fn get_raw_input_device_list() -> Result<Vec<RAWINPUTDEVICELIST>, String> {
         // Get the amount of raw input devices and allocate an apropariate space
         if GetRawInputDeviceList(None, &mut device_count, size_of::<RAWINPUTDEVICELIST>() as u32) == u32::MAX {
             return Err(
-                format!("Couldn't get the amount of raw input devices. {:?}",
-                GetLastError().expect_err("No error found while getting the amount of raw input devices."))
+                format!("Couldn't get the amount of all input devices. {:?}",
+                GetLastError().expect_err("No error found while getting the amount of all input devices."))
             );
         }
 
@@ -58,8 +60,35 @@ pub fn get_raw_input_device_list() -> Result<Vec<RAWINPUTDEVICELIST>, String> {
         // Assign raw input devices into the array
         if GetRawInputDeviceList(Some(&mut device_list[0]), &mut device_count, size_of::<RAWINPUTDEVICELIST>() as u32) == u32::MAX {
             return Err(
-                format!("Couldn't get the list of raw input devices. {:?}",
-                GetLastError().expect_err("No error found while getting the list of raw input devices."))
+                format!("Couldn't get the list of all input devices. {:?}",
+                GetLastError().expect_err("No error found while getting the list of all input devices."))
+            );
+        }
+    }
+
+    Ok(device_list)
+}
+
+pub fn get_registered_input_devices() -> Result<Vec<RAWINPUTDEVICE>, String> {
+    let mut device_list: Vec<RAWINPUTDEVICE>;
+    let mut device_count = 0;
+    unsafe {
+
+        // Get the amount of raw input devices and allocate an apropariate space
+        if GetRegisteredRawInputDevices(None, &mut device_count, size_of::<RAWINPUTDEVICE>() as u32) == u32::MAX {
+            return Err(
+                format!("Couldn't get the amount of registered input devices. {:?}",
+                GetLastError().expect_err("No error found while getting the amount of registered input devices."))
+            );
+        }
+
+        device_list = vec![RAWINPUTDEVICE::default(); device_count as usize];
+
+        // Assign raw input devices into the array
+        if GetRegisteredRawInputDevices(Some(&mut device_list[0]), &mut device_count, size_of::<RAWINPUTDEVICE>() as u32) == u32::MAX {
+            return Err(
+                format!("Couldn't get the list of registered input devices. {:?}",
+                GetLastError().expect_err("No error found while getting the list of registered input devices."))
             );
         }
     }
@@ -96,12 +125,12 @@ pub fn get_raw_input_device_info(device_handle: HANDLE) -> Result<RID_DEVICE_INF
 }
 
 union UnsafeRawInputData {
-    Keyboard: RAWKEYBOARD,
-    Mouse: RAWMOUSE,
-    HID: RAWHID
+    keyboard: RAWKEYBOARD,
+    mouse: RAWMOUSE,
+    hid: RAWHID
 }
 
-enum RawInputData {
+pub enum RawInputData {
     Keyboard(RAWKEYBOARD),
     Mouse(RAWMOUSE),
     HID(RAWHID)
@@ -109,12 +138,14 @@ enum RawInputData {
 
 impl Debug for RawInputData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match *self {
-            Self::Keyboard(keyboard) => { &format!("RAWKEYBOARD {{ MakeCode: {}, Flags: {}, Reserved: {}, VKey: {}, Message: {}, ExtraInformation: {} }}",
+        let raw_input_data: String = match *self {
+            Self::Keyboard(keyboard) => { format!("RAWKEYBOARD {{ MakeCode: {}, Flags: {}, Reserved: {}, VKey: {}, Message: {}, ExtraInformation: {} }}",
             keyboard.MakeCode, keyboard.Flags, keyboard.Reserved, keyboard.VKey, keyboard.Message, keyboard.ExtraInformation) }
-            Self::Mouse(mouse) => { &format!("RAWMOUSE {{ usFlags: {}, Anonymous: {{ ulButtons: {}, Anonymous: {{ usButtonData: {}, usButtonFlags: {} }} }}, ulRawButtons: {}, lLastX: {}, lLastY: {}, ulExtraInformation: {} }}", mouse.usFlags, mouse.Anonymous.ulButtons, mouse.Anonymous.Anonymous.usButtonData, mouse.Anonymous.Anonymous.usButtonFlags, mouse.ulRawButtons, mouse.lLastX, mouse.lLastY, mouse.ulExtraInformation) }
-            Self::HID(hid) => { &format!("LOL") }
-        });
+            Self::Mouse(mouse) => unsafe { format!("RAWMOUSE {{ usFlags: {}, Anonymous: {{ ulButtons: {}, Anonymous: {{ usButtonData: {}, usButtonFlags: {} }} }}, ulRawButtons: {}, lLastX: {}, lLastY: {}, ulExtraInformation: {} }}", mouse.usFlags, mouse.Anonymous.ulButtons, mouse.Anonymous.Anonymous.usButtonData, mouse.Anonymous.Anonymous.usButtonFlags, mouse.ulRawButtons, mouse.lLastX, mouse.lLastY, mouse.ulExtraInformation) }
+            Self::HID(hid) => { format!("RAWHID {{ dwSizeHid: {}, dwCount: {}, bRawData: {:?} }}", hid.dwSizeHid, hid.dwCount, hid.bRawData) }
+        };
+
+        f.write_str(&raw_input_data)?;
 
         Ok(())
     }
@@ -130,12 +161,12 @@ pub fn get_raw_input_data(data_handle: &HRAWINPUT) -> Result<RawInputData, Strin
     }
 
     // Check the type of device data
-    let device_info = get_raw_input_device_info(device_header.hDevice)?;
+    let device_info = get_raw_input_device_info(HANDLE(data_handle.0))?;
 
     // Get the device data
-    let mut device_data: UnsafeRawInputData; 
+    let mut device_data: UnsafeRawInputData = UnsafeRawInputData { hid: RAWHID::default() }; 
     unsafe {
-        let mut data_size = 0;
+        let mut data_size: u32 = 0;
         let device_data_ptr = (&mut device_data as *mut _) as *mut c_void;
         if GetRawInputData(*data_handle, RID_INPUT, Some(device_data_ptr), &mut data_size as *mut _, size_of::<RAWINPUTHEADER>() as u32) == u32::MAX {
             return Err(
@@ -146,8 +177,9 @@ pub fn get_raw_input_data(data_handle: &HRAWINPUT) -> Result<RawInputData, Strin
     }
 
     match device_info.dwType {
-        RID_DEVICE_INFO_TYPE(0) => unsafe { Ok(RawInputData::Mouse(device_data.Mouse)) },
-        RID_DEVICE_INFO_TYPE(1) => unsafe { Ok(RawInputData::Keyboard(device_data.Keyboard)) },
-        RID_DEVICE_INFO_TYPE(2) => unsafe { Ok(RawInputData::HID(device_data.HID)) }
+        RID_DEVICE_INFO_TYPE(0) => unsafe { Ok(RawInputData::Mouse(device_data.mouse)) },
+        RID_DEVICE_INFO_TYPE(1) => unsafe { Ok(RawInputData::Keyboard(device_data.keyboard)) },
+        RID_DEVICE_INFO_TYPE(2) => unsafe { Ok(RawInputData::HID(device_data.hid)) }
+        rid => { return Err(format!("Unknown RID device type of `{}`", rid.0)) }
     }
 }
